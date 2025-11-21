@@ -119,8 +119,38 @@ function App() {
 
   // Google Login
   const handleGoogleLogin = () => {
-    window.location.href = 'http://localhost:5001/auth/google';
+    const popup = window.open(
+      'http://localhost:5001/auth/google',
+      'google-login',
+      'width=500,height=600,scrollbars=yes,resizable=yes'
+    );
+
+    const timer = setInterval(() => {
+      if (popup.closed) {
+        clearInterval(timer);
+        // Try to get user from localStorage (in case login completed)
+        const saved = localStorage.getItem('user');
+        if (saved) setUser(JSON.saved);
+      }
+    }, 500);
+  
+    // Listen for login success
+    const listener = (e) => {
+      if (e.origin !== 'http://localhost:5001') return;
+      if (e.data.type === 'GOOGLE_LOGIN_SUCCESS') {
+        setUser(e.data.user);
+        localStorage.setItem('user', JSON.stringify(e.data.user));
+        clearInterval(timer);
+        window.removeEventListener('message', listener);
+      }
+    };
+    window.addEventListener('message', listener);
   };
+
+  useEffect(() => {
+    const u = localStorage.getItem('user');
+    if (u) setUser(JSON.parse(u));
+  }, []);
 
   // Search Hashtag
   const searchHashtag = async () => {
@@ -152,6 +182,22 @@ function App() {
       setLoadingTwitter(false);
     }
   };
+
+  useEffect(() => {
+    const handleMessage = (event) => {
+      // Security: only accept messages from your backend
+      if (event.origin !== 'http://localhost:5001') return;
+
+      if (event.data.type === 'GOOGLE_LOGIN_SUCCESS') {
+        const loggedInUser = event.data.user;
+        setUser(loggedInUser);
+        localStorage.setItem('user', JSON.stringify(loggedInUser)); // keep login after refresh
+      }
+    };
+
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, []);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-50 to-purple-50">
@@ -230,7 +276,7 @@ function App() {
 
       <footer className="bg-white py-10 text-center border-t-4 border-indigo-600 mt-20">
         <p className="text-2xl font-bold text-indigo-700">Web Technologies 2025 Mini Project</p>
-        <p className="text-xl mt-2">Team: Ronak Thamaran, Ritesh Babu Reddy, Rohan Rajeev Chirbi</p>
+        <p className="text-xl mt-2">Team: Rohan Rajeev Chirbi, Ronak Thamaran, Ritesh Babu Reddy</p>
         <p className="text-gray-600">PES University</p>
       </footer>
     </div>

@@ -60,14 +60,48 @@ app.get('/auth/google', (req, res) => {
   res.redirect(googleUrl);
 });
 
-app.get('/auth/google/callback', (req, res) => {
-  res.send(`
-    <script>
-      window.opener && window.opener.postMessage('google-login-success', 'http://localhost:3000');
-      window.close();
-    </script>
-    <h2>Login Successful! You can close this window.</h2>
-  `);
+app.get('/auth/google/callback', async (req, res) => {
+  const { code } = req.query;
+  if (!code) return res.status(400).send('No code');
+
+  try {
+    const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        code,
+        client_id: process.env.GOOGLE_CLIENT_ID,
+        client_secret: process.env.GOOGLE_CLIENT_SECRET,
+        redirect_uri: 'http://localhost:5001/auth/google/callback',
+        grant_type: 'authorization_code'
+      })
+    });
+
+    const tokens = await tokenRes.json();
+    const userRes = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+      headers: { Authorization: `Bearer ${tokens.access_token}` }
+    });
+    const user = await userRes.json();
+
+    res.send(`
+      <script>
+        if (window.opener) {
+          window.opener.postMessage({
+            type: 'GOOGLE_LOGIN_SUCCESS',
+            user: {
+              displayName: "${user.name.replace(/"/g, '\\"')}",
+              photoURL: "${user.picture}",
+              email: "${user.email}"
+            }
+          }, "http://localhost:3000");
+        }
+        document.write("<h2>Success! Closing...</h2>");
+        setTimeout(() => window.close(), 1000);
+      </script>
+    `);
+  } catch (err) {
+    res.send('Error. Close and try again.');
+  }
 });
 
 // ─────── X (TWITTER) HASHTAG PULL ROUTE ───────
